@@ -1,6 +1,37 @@
+# frozen_string_literal: true
+
 module RuboCop
   module Cop
     module Naming
+      # Checks for methods with `get_` or `set_` prefixes that take arguments.
+      #
+      # For `get_` prefixed methods, suggests using `_for` suffix or `find_` prefix.
+      # For `set_` prefixed methods with a single required argument, suggests using
+      # `=` method syntax for regular methods, or `create_`, `put_`, or `update_`
+      # prefixes for API methods. Methods with 2+ required arguments are excluded
+      # since the `=` suffix is only idiomatic for single-argument setters.
+      #
+      # @example
+      #   # bad
+      #   def get_user(id)
+      #     User.find(id)
+      #   end
+      #
+      #   # good
+      #   def user_for(id)
+      #     User.find(id)
+      #   end
+      #
+      # @example
+      #   # bad
+      #   def set_custom_var(val)
+      #     @custom_var = val
+      #   end
+      #
+      #   # good
+      #   def custom_var=(val)
+      #     @custom_var = val
+      #   end
       class MethodNameGetPrefix < Base
         extend AutoCorrector
 
@@ -11,7 +42,7 @@ module RuboCop
                   'Consider using `%<method_name>s=` instead.'
 
         MSG_SET_API = 'Avoid using `set_` prefix for methods with arguments. ' \
-                       'Consider using `%<suggestions>s` instead.'
+                      'Consider using `%<suggestions>s` instead.'
 
         # Patterns that indicate HTTP GET requests (methods that should be excluded)
         HTTP_GET_PATTERNS = [
@@ -32,16 +63,16 @@ module RuboCop
         # Patterns for standalone get() calls that are likely HTTP GET wrappers
         # (only checked in API client files)
         HTTP_GET_WRAPPER_PATTERNS = [
-          /\bget\s*\(/                  # get(...) method call
+          /\bget\s*\(/ # get(...) method call
         ].freeze
 
         # File path patterns that indicate API clients/controllers
         API_FILE_PATTERNS = [
-          /client/i,                    # *client*.rb
-          /api_client/i,                 # *api_client*.rb
-          /controller/i,                # *controller*.rb
-          /\/api\//,                    # files in /api/ directory
-          /\/clients\//                 # files in /clients/ directory
+          /client/i, # *client*.rb
+          /api_client/i, # *api_client*.rb
+          /controller/i, # *controller*.rb
+          %r{/api/}, # files in /api/ directory
+          %r{/clients/} # files in /clients/ directory
         ].freeze
 
         def on_def(node)
@@ -67,7 +98,8 @@ module RuboCop
           method_name_without_prefix = node.method_name.to_s.sub(/^get_/, '')
           suggested_name = "#{method_name_without_prefix}_for"
 
-          add_offense(node, message: format(MSG_GET, method_name: method_name_without_prefix)) do |corrector|
+          message = format(MSG_GET, method_name: method_name_without_prefix)
+          add_offense(node, message: message) do |corrector|
             corrector.replace(node.loc.name, suggested_name)
           end
         end
@@ -75,29 +107,39 @@ module RuboCop
         def handle_set_prefix(node)
           return if node.arguments.empty? # Let Naming/AccessorMethodName handle these
 
-          method_name_without_prefix = node.method_name.to_s.sub(/^set_/, '')
+          # Skip if method has 2+ required arguments (without defaults)
+          # The `=` suffix is only idiomatic for single-argument setters
+          return if required_argument_count(node) >= 2
 
-          # For API files, suggest create_, put_, or update_ prefixes
-          if api_file?(node)
+          method_name_without_prefix = node.method_name.to_s.sub(/^set_/, '')
+          is_api_file = api_file?(node)
+
+          message = build_set_message(method_name_without_prefix, is_api_file)
+          suggested_name = build_set_suggested_name(method_name_without_prefix, is_api_file)
+
+          add_offense(node, message: message) do |corrector|
+            corrector.replace(node.loc.name, suggested_name)
+          end
+        end
+
+        def build_set_message(method_name_without_prefix, is_api_file)
+          if is_api_file
             suggested_names = [
               "create_#{method_name_without_prefix}",
               "put_#{method_name_without_prefix}",
               "update_#{method_name_without_prefix}"
             ]
-            msg = format(MSG_SET_API,
-                         suggestions: suggested_names.join('`, `'))
+            format(MSG_SET_API, suggestions: suggested_names.join('`, `'))
           else
-            # For regular methods, use the = method syntax
-            msg = format(MSG_SET, method_name: method_name_without_prefix)
+            format(MSG_SET, method_name: method_name_without_prefix)
           end
+        end
 
-          add_offense(node, message: msg) do |corrector|
-            if api_file?(node)
-              # Default to create_ prefix for API files
-              corrector.replace(node.loc.name, "create_#{method_name_without_prefix}")
-            else
-              corrector.replace(node.loc.name, "#{method_name_without_prefix}=")
-            end
+        def build_set_suggested_name(method_name_without_prefix, is_api_file)
+          if is_api_file
+            "create_#{method_name_without_prefix}"
+          else
+            "#{method_name_without_prefix}="
           end
         end
 
@@ -116,6 +158,15 @@ module RuboCop
         def calls_get_method?(node)
           source = node.source
           HTTP_GET_WRAPPER_PATTERNS.any? { |pattern| source.match?(pattern) }
+        end
+
+        def required_argument_count(node)
+          node.arguments.count do |arg|
+            # Count required positional arguments (arg) and required keyword arguments (kwarg)
+            # Exclude optional args (optarg, kwoptarg), splat args (restarg, kwrestarg),
+            # and block args (blockarg)
+            arg.arg_type? || arg.kwarg_type?
+          end
         end
       end
     end

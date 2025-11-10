@@ -3,22 +3,19 @@
 require 'spec_helper'
 require 'rubocop/cop/naming/method_name_get_prefix'
 
-RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
-  subject(:cop) { described_class.new(config) }
+RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix, :config do
   let(:id) { 1 }
-
-  let(:config) { RuboCop::Config.new }
 
   context 'when method has get_ prefix with arguments' do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
         def get_user(id)
-        ^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
+        ^^^^^^^^^^^^^^^^ Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
         end
       RUBY
     end
 
-    it 'auto-corrects to _for pattern' do
+    it 'autocorrects to _for pattern' do
       new_source = autocorrect_source(<<~RUBY)
         def get_user(id)
           User.find(id)
@@ -141,12 +138,12 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
         def get_db_line_item(order_id, line_item_id)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `get_` prefix for methods with arguments. Consider using `db_line_item_for` or `find_db_line_item` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `get_` prefix for methods with arguments. Consider using `db_line_item_for` or `find_db_line_item` instead.
         end
       RUBY
     end
 
-    it 'auto-corrects correctly' do
+    it 'autocorrects correctly' do
       new_source = autocorrect_source(<<~RUBY)
         def get_db_line_item(order_id, line_item_id)
           # implementation
@@ -165,7 +162,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
         def get_user(id:, name:)
-        ^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
         end
       RUBY
     end
@@ -175,7 +172,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
         def get_user(id, &block)
-        ^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
         end
       RUBY
     end
@@ -186,7 +183,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
       expect_offense(<<~RUBY)
         class UserService
           def get_user(id)
-          ^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
+          ^^^^^^^^^^^^^^^^ Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
             def helper_method
             end
           end
@@ -197,7 +194,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'handles methods with complex bodies' do
       expect_offense(<<~RUBY)
         def get_user(id)
-        ^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
+        ^^^^^^^^^^^^^^^^ Avoid using `get_` prefix for methods with arguments. Consider using `user_for` or `find_user` instead.
 
           return nil if id.nil?
           User.find_by(id: id) || User.create(id: id)
@@ -210,12 +207,12 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
         def set_custom_local_var(val)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `custom_local_var=` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `custom_local_var=` instead.
         end
       RUBY
     end
 
-    it 'auto-corrects to = method syntax' do
+    it 'autocorrects to = method syntax' do
       new_source = autocorrect_source(<<~RUBY)
         def set_custom_local_var(val)
           @custom_local_var = val
@@ -229,15 +226,9 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
       RUBY
     end
 
-    it 'auto-corrects set_user correctly' do
-      new_source = autocorrect_source(<<~RUBY)
+    it 'does not register an offense for methods with 2+ required arguments' do
+      expect_no_offenses(<<~RUBY)
         def set_user(id, name)
-          @user = User.new(id: id, name: name)
-        end
-      RUBY
-
-      expect(new_source).to eq(<<~RUBY)
-        def user=(id, name)
           @user = User.new(id: id, name: name)
         end
       RUBY
@@ -255,24 +246,32 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
   end
 
   context 'when set_ method is in API client file' do
-    it 'registers an offense for client file' do
-      expect_offense(<<~RUBY, 'app/clients/user_client.rb')
+    it 'does not register an offense for methods with 2+ required arguments' do
+      expect_no_offenses(<<~RUBY, 'app/clients/user_client.rb')
         def set_user(id, data)
-        ^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `create_user`, `put_user`, `update_user` instead.
+          post("/users/#{id}", data)
         end
       RUBY
     end
 
-    it 'auto-corrects to create_ prefix for client file' do
+    it 'registers an offense for single-argument method in client file' do
+      expect_offense(<<~RUBY, 'app/clients/user_client.rb')
+        def set_configuration(value)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `create_configuration`, `put_configuration`, `update_configuration` instead.
+        end
+      RUBY
+    end
+
+    it 'autocorrects to create_ prefix for single-argument method in client file' do
       new_source = autocorrect_source(<<~RUBY, 'app/clients/user_client.rb')
-        def set_user(id, data)
-          post("/users/#{id}", data)
+        def set_configuration(value)
+          post("/config", value)
         end
       RUBY
 
       expect(new_source).to eq(<<~RUBY)
-        def create_user(id, data)
-          post("/users/#{id}", data)
+        def create_configuration(value)
+          post("/config", value)
         end
       RUBY
     end
@@ -280,7 +279,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense for api_client file' do
       expect_offense(<<~RUBY, 'lib/api_client.rb')
         def set_configuration(value)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `create_configuration`, `put_configuration`, `update_configuration` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `create_configuration`, `put_configuration`, `update_configuration` instead.
         end
       RUBY
     end
@@ -288,7 +287,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense for controller file' do
       expect_offense(<<~RUBY, 'app/controllers/users_controller.rb')
         def set_user_preferences(prefs)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `create_user_preferences`, `put_user_preferences`, `update_user_preferences` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `create_user_preferences`, `put_user_preferences`, `update_user_preferences` instead.
         end
       RUBY
     end
@@ -296,7 +295,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense for file in /api/ directory' do
       expect_offense(<<~RUBY, 'app/api/v1/users.rb')
         def set_user_data(data)
-        ^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `create_user_data`, `put_user_data`, `update_user_data` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `create_user_data`, `put_user_data`, `update_user_data` instead.
         end
       RUBY
     end
@@ -304,12 +303,12 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense for file in /clients/ directory' do
       expect_offense(<<~RUBY, 'lib/clients/sendbird_client.rb')
         def set_channel_settings(settings)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `create_channel_settings`, `put_channel_settings`, `update_channel_settings` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `create_channel_settings`, `put_channel_settings`, `update_channel_settings` instead.
         end
       RUBY
     end
 
-    it 'auto-corrects to create_ prefix for API file' do
+    it 'autocorrects to create_ prefix for API file' do
       new_source = autocorrect_source(<<~RUBY, 'app/api/v1/users.rb')
         def set_user_data(data)
           put("/users", data)
@@ -325,23 +324,9 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
   end
 
   context 'when set_ method has multiple arguments' do
-    it 'registers an offense' do
-      expect_offense(<<~RUBY)
+    it 'does not register an offense for 2+ required arguments' do
+      expect_no_offenses(<<~RUBY)
         def set_db_line_item(order_id, line_item_id, value)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `db_line_item=` instead.
-        end
-      RUBY
-    end
-
-    it 'auto-corrects correctly' do
-      new_source = autocorrect_source(<<~RUBY)
-        def set_db_line_item(order_id, line_item_id, value)
-          # implementation
-        end
-      RUBY
-
-      expect(new_source).to eq(<<~RUBY)
-        def db_line_item=(order_id, line_item_id, value)
           # implementation
         end
       RUBY
@@ -349,24 +334,26 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
   end
 
   context 'when set_ method has keyword arguments' do
-    it 'registers an offense' do
-      expect_offense(<<~RUBY)
+    it 'does not register an offense for 2+ required keyword arguments' do
+      expect_no_offenses(<<~RUBY)
         def set_user(id:, name:)
-        ^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
+          @user = User.new(id: id, name: name)
         end
       RUBY
     end
 
-    it 'auto-corrects correctly' do
-      new_source = autocorrect_source(<<~RUBY)
-        def set_user(id:, name:)
-          @user = User.new(id: id, name: name)
+    it 'registers an offense for single required keyword argument' do
+      expect_offense(<<~RUBY)
+        def set_user(id:)
+        ^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
         end
       RUBY
+    end
 
-      expect(new_source).to eq(<<~RUBY)
-        def user=(id:, name:)
-          @user = User.new(id: id, name: name)
+    it 'registers an offense for single positional and optional keyword arguments' do
+      expect_offense(<<~RUBY)
+        def set_user(id, name: 'default')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
         end
       RUBY
     end
@@ -376,7 +363,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
         def set_user(id, &block)
-        ^^^^^^^^^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
+        ^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
         end
       RUBY
     end
@@ -387,7 +374,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
       expect_offense(<<~RUBY)
         class UserService
           def set_user(id)
-          ^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
+          ^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
             def helper_method
             end
           end
@@ -398,7 +385,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'handles methods with complex bodies' do
       expect_offense(<<~RUBY)
         def set_user(id)
-        ^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
+        ^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
 
           return nil if id.nil?
           @user = User.find_by(id: id) || User.create(id: id)
@@ -409,7 +396,7 @@ RSpec.describe RuboCop::Cop::Naming::MethodNameGetPrefix do
     it 'handles set_ methods that make HTTP calls (still flags them)' do
       expect_offense(<<~RUBY)
         def set_user(id)
-        ^^^^^^^^^^^^^^^^ Naming/MethodNameGetPrefix: Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
+        ^^^^^^^^^^^^^^^^ Avoid using `set_` prefix for methods with arguments. Consider using `user=` instead.
           connection.post("/users/#{id}")
         end
       RUBY
